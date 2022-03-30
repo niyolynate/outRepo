@@ -1,1 +1,118 @@
+/* creating a query insql that is a functional java. 
+will execute sparq importer function. 
+
 package org.niyocode.outrepo;
+
+import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+
+import com.hp.hpl.jena.query.Dataset;
+import com.hp.hpl.jena.query.Query;
+import com.hp.hpl.jena.query.QueryExecution;
+import com.hp.hpl.jena.query.QuerySolution;
+import com.hp.hpl.jena.query.ResultSet;
+import com.hp.hpl.jena.rdf.model.Model;
+import com.ibm.rdf.store.Store;
+import com.ibm.rdf.store.StoreManager;
+import com.ibm.rdf.store.exception.RdfStoreException;
+import com.ibm.rdf.store.jena.RdfStoreFactory;
+import com.ibm.rdf.store.jena.RdfStoreQueryExecutionFactory;
+import com.ibm.rdf.store.jena.RdfStoreQueryFactory;
+
+public class RDFStoreSampleQuery   {
+	
+		
+	public static void main(String[] args) throws SQLException, IOException {
+		
+		Connection conn = null;
+		Store store = null;
+		String storeName = "sample";
+		String schema = "db2admin";
+
+		// Get a connection to the DB2 database.
+		try {
+			Class.forName("com.ibm.db2.jcc.DB2Driver");
+			conn = DriverManager.getConnection(
+					"jdbc:db2://localhost:50000/dbrdf", "db2admin",
+					"db2admin");
+		} catch (ClassNotFoundException e1) {
+			e1.printStackTrace();
+		}
+
+		
+		try {
+			
+			/* Connect to required RDF store in the specified schema. */
+			store = StoreManager.connectStore(conn, schema, storeName);
+			
+			/* This is going to be our SPARQL query i.e. select triples 
+			 in the default graph where object is <ibm.com>
+			 */
+       String query = "SELECT * WHERE { ?s ?p 
+      <https://www.ibm.com> }";
+			
+			/* Create the Query object for the SPARQL string. */
+			Query q = RdfStoreQueryFactory.create(query);
+			
+			/* Get the Dataset interface of the RDF store. */
+			Dataset ds = RdfStoreFactory.connectDataset(store, conn);
+			
+			/* Create a QueryExecution object, by providing the query to execute
+			 and the dataset against which it to be executed. */
+			QueryExecution qe = RdfStoreQueryExecutionFactory.create(q, ds);
+					
+			long rows = 0;
+			Model m = null;
+			
+			/* Based on the SPARQL query type, call the proper execution
+			  method. */
+			if (q.isSelectType()) {
+				ResultSet rs = qe.execSelect();
+				while (rs.hasNext()) {
+					QuerySolution qs = rs.next();
+					System.out.println(qs);
+					System.out.println();
+					rows++;
+				}
+			}
+			else if ( q.isDescribeType() ) {
+					m = qe.execDescribe();
+					m.write(System.out, "N-TRIPLE");
+			}
+			else if ( q.isAskType() ) {
+				System.out.println(qe.execAsk());
+								
+			}
+			else if (q.isConstructType()) {
+				m = qe.execConstruct();
+				m.write(System.out, "N-TRIPLE");
+			}
+				
+			
+			/* Close the QueryExecution object. This is required to ensure
+			 no JDBC statement leaks. */
+			qe.close();
+			
+			// Display the # of rows returned
+			if ( m != null ) {
+				System.out.println("Number of Rows  : " + m.size());
+				m.close();
+			}
+			else {
+				System.out.println("Number of Rows  : " + rows);
+			}
+			
+		}
+		catch(RdfStoreException e) {
+			
+			e.printStackTrace();
+		}
+		catch(Exception e) {
+			e.printStackTrace();
+		}
+		
+	}
+	
+}
